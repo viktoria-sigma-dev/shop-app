@@ -1,0 +1,38 @@
+# Build results
+bin/
+obj/
+
+# Visual Studio / VS Code / Rider settings
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider project files
+*.iml
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# ASP.NET specific
+appsettings.*.local.json
+
+# Dotnet tools
+*.nupkg
+*.snupkg
+
+# Coverage reports
+coverage/
+TestResults/
+
+# Publish output
+publish/
+
+# Local environment files
+.env
