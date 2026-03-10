@@ -1,22 +1,29 @@
-using UsersApp.Repository;
-using UsersApp.Services;
 using UsersApp.Middlewares;
+using UsersApp.src.Application.Services;
+using UsersApp.src.Infrastructure.DBContext;
+using Microsoft.EntityFrameworkCore;
+using UsersApp.src.WebApi.DI;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // === Dependency Injection registrations ===
 
-// Services
-builder.Services.AddScoped<UserService>();
-builder.Services.AddScoped<CommentService>();
-builder.Services.AddSingleton<FileService>();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<GlobalExceptionFilter>();
+});
 
-// Repositories
-builder.Services.AddScoped<UserRepository>();
-builder.Services.AddScoped<CommentRepository>();
+// Register DbContext with MySQL
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseMySql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))
+    )
+);
 
-// Controllers
-builder.Services.AddControllers();
+// Dependency Injection
+builder.Services.AddApplicationServices();
+builder.Services.AddInfrastructureServices();
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -35,8 +42,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<ErrorHandlingMiddleware>();
-app.Services.GetRequiredService<FileService>();
-
+app.UseRouting();
 app.MapControllers();
 
 app.Run();
