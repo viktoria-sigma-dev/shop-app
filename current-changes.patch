@@ -1,0 +1,254 @@
+diff --git a/src/Application/UseCases/OrderCases/Create.cs b/src/Application/UseCases/OrderCases/Create.cs
+index 4eea81d4abce64e7e3615f7b24103d78d2b8c0ee..bc75be486bace2be821ac7875548d6f1a0bbcaaa 100644
+--- a/src/Application/UseCases/OrderCases/Create.cs
++++ b/src/Application/UseCases/OrderCases/Create.cs
+@@ -20,22 +20,20 @@ namespace UsersApp.src.Application.UseCases.OrderCases
+             await using var dbTransaction = await _context.Database.BeginTransactionAsync();
+             try
+             {
+-                var order = await CreateOrder(orderDto);
+-                foreach (var orderItemDto in orderDto.OrderItems)
++                var user = await _userRepository.GetOneAsync(orderDto.UserId);
++                if (user is null)
+                 {
+-                    var updatedProduct = await UpdateProductOrder(orderItemDto);
+-                    var orderItem = await CreateOrderItem(order, orderItemDto, updatedProduct);
+-                    order.OrderItems.Add(orderItem);
+-                    total += updatedProduct.GetTotal(orderItemDto.Quantity);
++                    throw new BadHttpRequestException($"User with id {orderDto.UserId} was not found");
+                 }
+ 
+-                var transaction = new Transaction
+-                {
+-                    OrderId = order.OrderId,
+-                    Order = order,
+-                    Status = TransactionStatus.Paid,
+-                    Total = total,
+-                };
++                var products = await _productRepository.GetByIds(orderDto.OrderItems.Select(oi => oi.ProductId).ToList());
++
++                var order = Order.Create(
++                    user, 
++                    products, 
++                    orderDto.OrderItems.ToDictionary(oi => oi.ProductId, oi => oi.Quantity));
++                
++                var transaction = order.CreatePaidTransaction();
+                 await _transactionRepository.Create(transaction);
+                 order.Transactions.Add(transaction);
+ 
+@@ -50,39 +48,5 @@ namespace UsersApp.src.Application.UseCases.OrderCases
+                 throw;
+             }
+         }
+-        private async Task<Order> CreateOrder(CreateOrderDTO orderDto)
+-        {
+-            var user = await _userRepository.GetOneAsync(orderDto.UserId);
+-            if (user == null) throw new KeyNotFoundException($"User with such id {orderDto.UserId} was not found");
+-            var order = new Order
+-            {
+-                UserId = user.UserId,
+-                User = user,
+-                Status = OrderStatus.Initiated,
+-            };
+-            return await _orderRepository.CreateOrder(order);
+-        }
+-        private async Task<Product> UpdateProductOrder(CreateOrderItemDTO orderItemDto)
+-        {
+-            var product = await _productRepository.GetOneAsync(orderItemDto.ProductId);
+-            if (product == null) throw new KeyNotFoundException($"Product with id {orderItemDto.ProductId} not found");
+-            if (product.StockAmount < orderItemDto.Quantity) throw new BadHttpRequestException($"Only {product.StockAmount} products left in the stock");
+-            product.StockAmount -= orderItemDto.Quantity;
+-            return await _productRepository.UpdateAsync(product);
+-        }
+-
+-
+-        private async Task<OrderItem> CreateOrderItem(Order order, CreateOrderItemDTO orderItemDto, Product product)
+-        {
+-            var orderItem = new OrderItem
+-            {
+-                OrderId = order.OrderId,
+-                Order = order,
+-                ProductId = orderItemDto.ProductId,
+-                Product = product,
+-                Quantity = orderItemDto.Quantity,
+-            };
+-            return await _orderItemRepository.Create(orderItem);
+-        }
+     }
+ }
+\ No newline at end of file
+diff --git a/src/Domain/Entities/Order.cs b/src/Domain/Entities/Order.cs
+index a6b9b406d898bef2eaec628230879237165c2ada..4664bfad87c3dfd916e7dde53eab4ee5e28a1abb 100644
+--- a/src/Domain/Entities/Order.cs
++++ b/src/Domain/Entities/Order.cs
+@@ -1,20 +1,75 @@
+-using System;
+-using System.Collections.Generic;
+-using System.ComponentModel.DataAnnotations;
+-using System.Linq;
+-using System.Threading.Tasks;
+ using UsersApp.src.Domain.Enums;
+ 
+ namespace UsersApp.src.Domain.Entities
+ {
+     public class Order
+     {
+-        public int OrderId { get; set; }
+-        public OrderStatus Status { get; set; }
+-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+-        public int UserId { get; set; }
+-        public required User User { get; set; }
+-        public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
+-        public ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
++        public int OrderId { get; init; }
++        public OrderStatus Status { get; private set; }
++        public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
++        public int UserId { get; private set; }
++        public User User { get; private set; }
++        public ICollection<OrderItem> OrderItems { get; private set; } = new List<OrderItem>();
++        public ICollection<Transaction> Transactions { get; private set; } = new List<Transaction>();
++
++        private Order(
++                int orderId,
++                OrderStatus status,
++                DateTime createdAt,
++                int userId,
++                User user)
++        {
++            OrderId = orderId;
++            Status = status;
++            CreatedAt = createdAt;
++            UserId = userId;
++            User = user;
++        }
++
++        public static Order Create(
++            User user,
++            IReadOnlyCollection<Product> products,
++            IDictionary<int, int> items)
++        {
++            var productsDict = products.ToDictionary(p => p.ProductId, p => p);
++
++            if (items
++                    .CountBy(oi => oi.Key)
++                    .Any(kvp => kvp.Value > 2))
++            {
++                throw new BadHttpRequestException("You cannot order more than 2 of the same product");
++            }
++            if (items.Any(oi => !productsDict.ContainsKey(oi.Key)))
++            {
++                throw new BadHttpRequestException("One or more products were not found");
++            }
++
++            var order = new Order(0, OrderStatus.Initiated, DateTime.UtcNow, user.UserId, user);
++            var orderItems = items.Select(oi => OrderItem.Create(
++                    order,
++                    productsDict[oi.Key],
++                    oi.Value
++                )).ToList();
++            order.OrderItems = orderItems;
++
++            return order;
++        }
++
++        public decimal GetTotal()
++        {
++            return OrderItems.Sum(oi => oi.Quantity * oi.Price);
++        }
++
++        public Transaction CreatePaidTransaction()
++        {
++            var transaction = new Transaction
++            {
++                OrderId = OrderId,
++                Order = this,
++                Status = TransactionStatus.Paid,
++                Total = GetTotal(),
++            };
++            return transaction;
++        }
+     }
+ }
+\ No newline at end of file
+diff --git a/src/Domain/Entities/OrderItem.cs b/src/Domain/Entities/OrderItem.cs
+index 096e7b492899c50d4ab3b672c937ff779073b6d0..955defb0c2462f441198f9c99cc51c87a1d6df8b 100644
+--- a/src/Domain/Entities/OrderItem.cs
++++ b/src/Domain/Entities/OrderItem.cs
+@@ -1,17 +1,38 @@
+-using System;
+-using System.Collections.Generic;
+-using System.Linq;
+-using System.Threading.Tasks;
+-
+ namespace UsersApp.src.Domain.Entities
+ {
+     public class OrderItem
+     {
+-        public int OrderItemId { get; set; }
+-        public int OrderId { get; set; }
+-        public required Order Order { get; set; }
+-        public int ProductId { get; set; }
+-        public required Product Product { get; set; }
+-        public required int Quantity { get; set; }
++        public int OrderItemId { get; init; }
++        public int OrderId { get; init; }
++        public Order Order { get; init; }
++        public int ProductId { get; init; }
++        public Product Product { get; init; }
++        public required int Quantity { get; init; }
++        public required decimal Price { get; init; }
++
++        private OrderItem(
++            Order order,
++            Product product,
++            int quantity,
++            decimal price)
++        {
++            ProductId = product.ProductId;
++            Product = product;
++            Order = order;
++            OrderId = order.OrderId;
++            Quantity = quantity;
++            Price = price;
++        }
++
++        public static OrderItem Create(
++            Order order,
++            Product product,
++            int quantity)
++        {
++            return new OrderItem(order, product, quantity, product.Price)
++            {
++                OrderItemId = 0,
++            };
++        }
+     }
+ }
+\ No newline at end of file
+diff --git a/src/Domain/Interfaces/IProductRepository.cs b/src/Domain/Interfaces/IProductRepository.cs
+index b016c47f55996f5714fb5b1ed5ad5d490c1996d4..078e00d7f25884ec2f5988a1adbeffe96b556dd3 100644
+--- a/src/Domain/Interfaces/IProductRepository.cs
++++ b/src/Domain/Interfaces/IProductRepository.cs
+@@ -12,6 +12,7 @@ namespace UsersApp.src.Domain.Interfaces
+     {
+         Task<List<Product>> GetAllAsync();
+         Task<Product?> GetOneAsync(int id);
++        Task<IReadOnlyCollection<Product>> GetByIds(IReadOnlyCollection<int> ids);
+         Task<Product?> GetOneAsync(string name);
+         Task<Product> CreateAsync(Product product);
+         Task<Product> UpdateAsync(Product product);
+diff --git a/src/Infrastructure/Repositories/ProductRepository.cs b/src/Infrastructure/Repositories/ProductRepository.cs
+index 65bf9e03da9fd381fc4305dc95f4caacc783efe9..0269d2c17ccf0fbf73b5e8c7687f3d2f8ecccf95 100644
+--- a/src/Infrastructure/Repositories/ProductRepository.cs
++++ b/src/Infrastructure/Repositories/ProductRepository.cs
+@@ -49,5 +49,9 @@ namespace UsersApp.src.Infrastructure.Repositories
+ 
+             return true;
+         }
++
++        public async Task<IReadOnlyCollection<Product>> GetByIds(IReadOnlyCollection<int> ids)
++            => await _context.Products.Where(p => 
++                ids.Contains(p.ProductId)).ToListAsync();
+     }
+ }
+\ No newline at end of file
