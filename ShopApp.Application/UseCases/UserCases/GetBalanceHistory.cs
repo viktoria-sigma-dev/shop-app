@@ -8,17 +8,13 @@ namespace ShopApp.Application.UseCases.UserCases
 {
     public class GetBalanceHistoryUserUseCase(IOrderRepository orderRepository, IUserRepository userRepository, IMapper mapper)
     {
-        public IOrderRepository _orderRepository = orderRepository;
-        public IUserRepository _userRepository = userRepository;
-        public IMapper _mapper = mapper;
-
         public async Task<List<TransactionResponseDTO>> Execute(int userId)
         {
-            var user = await _userRepository.GetOneAsync(userId);
+            var user = await userRepository.GetOneAsync(userId);
             if (user == null) throw new UserNotFoundException(userId);
-            var transactions = await _orderRepository.GetUserTransactionsAsync(userId);
+            var transactions = await orderRepository.GetUserTransactionsAsync(userId);
 
-            return _mapper.Map<List<TransactionResponseDTO>>(transactions);
+            return mapper.Map<List<TransactionResponseDTO>>(transactions);
         }
     }
 }

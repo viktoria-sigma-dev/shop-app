@@ -7,28 +7,24 @@ namespace ShopApp.Application.UseCases.OrderCases
 {
     public class DeclineOrderUseCase(IOrderRepository orderRepository, ITransactionRepository transactionRepository, IUnitOfWork unitOfWork, IMapper mapper)
     {
-        private IOrderRepository _orderRepository = orderRepository;
-        private ITransactionRepository _transactionRepository = transactionRepository;
-        private IUnitOfWork _unitOfWork = unitOfWork;
-        private IMapper _mapper = mapper;
         public async Task<OrderResponseDTO> Execute(int id)
         {
-            await _unitOfWork.BeginTransactionAsync();
+            await unitOfWork.BeginTransactionAsync();
             try
             {
-                var order = await _orderRepository.GetOneFullAsync(id);
+                var order = await orderRepository.GetOneFullAsync(id);
                 if (order == null) throw new OrderNotFoundException(id);
 
                 order.DeclineOrder();
 
-                await _orderRepository.UpdateOrder(order);
+                await orderRepository.UpdateOrder(order);
 
-                await _unitOfWork.CommitAsync();
-                return _mapper.Map<OrderResponseDTO>(order);
+                await unitOfWork.CommitAsync();
+                return mapper.Map<OrderResponseDTO>(order);
             }
             catch
             {
-                await _unitOfWork.RollbackAsync();
+                await unitOfWork.RollbackAsync();
                 throw;
             }
         }

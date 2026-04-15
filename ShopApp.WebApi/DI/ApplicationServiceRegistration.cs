@@ -33,9 +33,10 @@ namespace ShopApp.WebApi.DI
             // Order UseCases
             services.AddScoped<CreateOrderUseCase>();
             services.AddScoped<DeclineOrderUseCase>();
+            services.AddScoped<PackOrderUseCase>();
+            services.AddScoped<DeliverOrderUseCase>();
             services.AddScoped<GetAllOrderUseCase>();
             services.AddScoped<GetOneOrderUseCase>();
-            services.AddScoped<UpdateStatusOrderUseCase>();
 
             return services;
         }

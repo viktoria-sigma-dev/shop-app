@@ -6,20 +6,12 @@ namespace ShopApp.WebApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class TransactionController : ControllerBase
+    public class TransactionController(GetAllByOrderTransactionUseCase getAllByOrderTransactionUseCase, GetAllByUserTransactionUseCase getAllByUserTransactionUseCase) : ControllerBase
     {
-        private readonly GetAllByOrderTransactionUseCase _getAllByOrderTransactionUseCase;
-        private readonly GetAllByUserTransactionUseCase _getAllByUserTransactionUseCase;
-        public TransactionController(GetAllByOrderTransactionUseCase getAllByOrderTransactionUseCase, GetAllByUserTransactionUseCase getAllByUserTransactionUseCase)
-        {
-            _getAllByOrderTransactionUseCase = getAllByOrderTransactionUseCase;
-            _getAllByUserTransactionUseCase = getAllByUserTransactionUseCase;
-        }
-
         [HttpGet("order-transactions/{orderId}")]
         public async Task<ActionResult<IEnumerable<TransactionResponseDTO>>> GetAllByOrderId(int orderId)
         {
-            var transactionList = await _getAllByOrderTransactionUseCase.Execute(orderId);
+            var transactionList = await getAllByOrderTransactionUseCase.Execute(orderId);
 
             return Ok(transactionList);
         }
@@ -27,7 +19,7 @@ namespace ShopApp.WebApi.Controllers
         [HttpGet("user-transactions/{userId}")]
         public async Task<ActionResult<IEnumerable<TransactionResponseDTO>>> GetAllByUserId(int userId)
         {
-            var transactionList = await _getAllByUserTransactionUseCase.Execute(userId);
+            var transactionList = await getAllByUserTransactionUseCase.Execute(userId);
 
             return Ok(transactionList);
         }

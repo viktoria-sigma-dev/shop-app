@@ -76,15 +76,13 @@ namespace ShopApp.Domain.Entities
             User.DecreaseBalance(transaction.Total);
             return transaction;
         }
-
-        public void ChangeStatus(OrderStatus newStatus)
+        public void PackOrder()
         {
-            var allowedStatusTransition = AllowedStatusTransitions[Status];
-            if (!allowedStatusTransition.Contains(newStatus))
-            {
-                throw new InvalidOrderStatusException($"Cannot change order status from '{Status}' to '{newStatus}'");
-            }
-            Status = newStatus;
+            ChangeStatus(OrderStatus.Packed);
+        }
+        public void DeliverOrder()
+        {
+            ChangeStatus(OrderStatus.Delivered);
         }
         public void DeclineOrder()
         {
@@ -106,6 +104,16 @@ namespace ShopApp.Domain.Entities
             {
                 orderItem.Product.IncreaseStock(orderItem.Quantity);
             }
+        }
+
+        private void ChangeStatus(OrderStatus newStatus)
+        {
+            var allowedStatusTransition = AllowedStatusTransitions[Status];
+            if (!allowedStatusTransition.Contains(newStatus))
+            {
+                throw new InvalidOrderStatusException($"Cannot change order status from '{Status}' to '{newStatus}'");
+            }
+            Status = newStatus;
         }
 
         private static readonly Dictionary<OrderStatus, List<OrderStatus>> AllowedStatusTransitions = new()

@@ -8,12 +8,9 @@ namespace ShopApp.Application.UseCases.UserCases
 {
     public class CreateUserUseCase(IUserRepository userRepository, IMapper mapper)
     {
-        public IUserRepository _userRepository = userRepository;
-        private readonly IMapper _mapper = mapper;
-
         public async Task<UserResponseDTO> Execute(CreateUserDTO dto)
         {
-            var existingUser = await _userRepository.GetOneAsync(dto.Email);
+            var existingUser = await userRepository.GetOneAsync(dto.Email);
             if (existingUser != null) throw new DuplicatedUserEmailException(dto.Email);
 
             var user = new User
@@ -25,9 +22,9 @@ namespace ShopApp.Application.UseCases.UserCases
                 DateOfBirth = dto.DateOfBirth?.Trim(),
             });
 
-            var createdUser = await _userRepository.CreateAsync(user);
+            var createdUser = await userRepository.CreateAsync(user);
 
-            return _mapper.Map<UserResponseDTO>(createdUser);
+            return mapper.Map<UserResponseDTO>(createdUser);
         }
     }
 }

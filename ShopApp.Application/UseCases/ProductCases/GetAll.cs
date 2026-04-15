@@ -7,13 +7,10 @@ namespace ShopApp.Application.UseCases.ProductCases
 {
     public class GetAllProductUseCase(IProductRepository productRepository, IMapper mapper)
     {
-        public IProductRepository _productRepository = productRepository;
-        public IMapper _mapper = mapper;
-
         public async Task<List<ProductResponseDTO>> Execute()
         {
-            var products = await _productRepository.GetAllAsync();
-            return _mapper.Map<List<ProductResponseDTO>>(products);
+            var products = await productRepository.GetAllAsync();
+            return mapper.Map<List<ProductResponseDTO>>(products);
         }
     }
 }
